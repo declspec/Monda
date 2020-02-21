@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 
 namespace Monda {
-    public static class CommonExtensions {
+    public delegate TOut MapFunction<TSource, TIn, TOut>(ParseResult<TIn> result, ReadOnlySpan<TSource> data);
+
+    public static class Extensions {
         public static Parser<TSource, Tuple<TResult, TNext>> Then<TSource, TResult, TNext>(this Parser<TSource, TResult> self, Parser<TSource, TNext> next) {
             if (self == null || next == null)
                 throw new ArgumentNullException(self == null ? nameof(self) : nameof(next));
@@ -67,6 +69,10 @@ namespace Monda {
             });
         }
 
+        public static Parser<TSource, TResult> Between<TSource, TResult, TSurrounding>(this Parser<TSource, TResult> self, Parser<TSource, TSurrounding> surrounding) {
+            return Between(self, surrounding, surrounding);
+        }
+
         public static Parser<TSource, TResult> Between<TSource, TResult, TLeft, TRight>(this Parser<TSource, TResult> self, Parser<TSource, TLeft> left, Parser<TSource, TRight> right) {
             if (self == null)
                 throw new ArgumentNullException(nameof(self));
@@ -98,13 +104,13 @@ namespace Monda {
             });
         }
 
-        public static Parser<TSource, TNext> Map<TSource, TResult, TNext>(this Parser<TSource, TResult> self, Func<TResult, TNext> map) {
+        public static Parser<TSource, TNext> Map<TSource, TResult, TNext>(this Parser<TSource, TResult> self, MapFunction<TSource, TResult, TNext> map) {
             if (self == null || map == null)
                 throw new ArgumentNullException(self == null ? nameof(self) : nameof(map));
 
             return new Parser<TSource, TNext>((data, start) => {
                 var res = self.Parse(data, start);
-                return res.Success ? ParseResult.Success(map(res.Value), start, res.Length) : ParseResult.Fail<TNext>();
+                return res.Success ? ParseResult.Success(map(res, data), start, res.Length) : ParseResult.Fail<TNext>();
             });
         }
 
@@ -132,8 +138,8 @@ namespace Monda {
                     if (!res.Success)
                         break;
 
-                    // TODO: Maybe an exception if max == default && res.Length == 0?
-                    //  if the parser is deterministic then this will infinitely loop.
+                    if (res.Length == 0)
+                        ThrowOverflow(nameof(Many));
 
                     values.Add(res.Value);
                     length += res.Length;
@@ -170,8 +176,9 @@ namespace Monda {
                     if (!res.Success)
                         return ParseResult.Fail<Tuple<IReadOnlyList<TResult>, TNext>>();
 
-                    // TODO: Maybe an exception if res.Length == 0?
-                    //  if the parsers are deterministic then this will infinitely loop.
+                    if (res.Length == 0)
+                        ThrowOverflow(nameof(ManyUntil));
+
                     length += res.Length;
                     values.Add(res.Value);
                 }
@@ -202,8 +209,9 @@ namespace Monda {
                     if (!res.Success)
                         break;
 
-                    // TODO: Maybe an exception if max == default && res.Length == 0?
-                    //  if the parser is deterministic then this will infinitely loop.
+                    if (res.Length == 0)
+                        ThrowOverflow(nameof(SkipMany));
+
                     length += res.Length;
                     ++skipped;   
                 }
@@ -239,8 +247,9 @@ namespace Monda {
                     if (!res.Success)
                         return ParseResult.Fail<Tuple<int, TNext>>();
 
-                    // TODO: Maybe an exception if res.Length == 0?
-                    //  if the parsers are deterministic then this will infinitely loop.
+                    if (res.Length == 0)
+                        ThrowOverflow(nameof(SkipUntil));
+
                     length += res.Length;
                     ++skipped;
                 }
@@ -255,6 +264,10 @@ namespace Monda {
                 var res = self.Parse(data, start);
                 return res.Success ? res : ParseResult.Success(defaultValue, start, 0);
             }); 
+        }
+
+        private static void ThrowOverflow(string method) {
+            throw new StackOverflowException($"call to {method}() with a zero-length parser detected");
         }
     }
 }

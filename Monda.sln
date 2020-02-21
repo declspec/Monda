@@ -3,7 +3,17 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29613.14
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Monda", "Monda\Monda.csproj", "{55925854-558A-4EE5-BC33-9466FC2CA802}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Monda", "src\Monda\Monda.csproj", "{55925854-558A-4EE5-BC33-9466FC2CA802}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Monda.Csv", "src\Monda.Csv\Monda.Csv.csproj", "{48084780-CA0B-4A7D-97E9-8326D39375AD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{82978DD1-0652-4272-8E16-D26CD5FF46B0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Monda.Csv.Tests", "tests\Monda.Csv.Tests\Monda.Csv.Tests.csproj", "{F4D301E8-818F-4DD1-8F06-A310A247DD98}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Monda.Yang", "src\Monda.Yang\Monda.Yang.csproj", "{4B105901-F3C9-4A90-BA4A-1DB9592F9FBA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Monda.Yang.Tests", "tests\Monda.Yang.Tests\Monda.Yang.Tests.csproj", "{E5B70754-A293-4837-8094-984ACCA6DCA4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,9 +25,29 @@ Global
 		{55925854-558A-4EE5-BC33-9466FC2CA802}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{55925854-558A-4EE5-BC33-9466FC2CA802}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{55925854-558A-4EE5-BC33-9466FC2CA802}.Release|Any CPU.Build.0 = Release|Any CPU
+		{48084780-CA0B-4A7D-97E9-8326D39375AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{48084780-CA0B-4A7D-97E9-8326D39375AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{48084780-CA0B-4A7D-97E9-8326D39375AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{48084780-CA0B-4A7D-97E9-8326D39375AD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F4D301E8-818F-4DD1-8F06-A310A247DD98}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F4D301E8-818F-4DD1-8F06-A310A247DD98}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F4D301E8-818F-4DD1-8F06-A310A247DD98}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F4D301E8-818F-4DD1-8F06-A310A247DD98}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4B105901-F3C9-4A90-BA4A-1DB9592F9FBA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4B105901-F3C9-4A90-BA4A-1DB9592F9FBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4B105901-F3C9-4A90-BA4A-1DB9592F9FBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4B105901-F3C9-4A90-BA4A-1DB9592F9FBA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E5B70754-A293-4837-8094-984ACCA6DCA4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E5B70754-A293-4837-8094-984ACCA6DCA4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E5B70754-A293-4837-8094-984ACCA6DCA4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E5B70754-A293-4837-8094-984ACCA6DCA4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F4D301E8-818F-4DD1-8F06-A310A247DD98} = {82978DD1-0652-4272-8E16-D26CD5FF46B0}
+		{E5B70754-A293-4837-8094-984ACCA6DCA4} = {82978DD1-0652-4272-8E16-D26CD5FF46B0}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {5D27A1BE-FD4B-42FB-BAF8-EB61345F1CA9}
