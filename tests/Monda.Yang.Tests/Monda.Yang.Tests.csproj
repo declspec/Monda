@@ -16,4 +16,10 @@
     <ProjectReference Include="..\..\src\Monda.Yang\Monda.Yang.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Examples\CISCO-PROCESS-MIB.yang">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
