@@ -1,7 +1,8 @@
 ﻿using System;
+using System.Text;
 
 namespace Monda.Yang {
-    internal static class StringUtlities {
+    internal static class StringUtilities {
         public delegate void CreateStringAction<TState>(Span<char> span, TState state);
 
         public static string CreateString<TState>(int len, TState state, CreateStringAction<TState> action) {
@@ -22,6 +23,16 @@ namespace Monda.Yang {
             }
 
             return alloc;
+        }
+
+        public static StringBuilder Append(StringBuilder sb, in ReadOnlySpan<char> data) {
+            if (data.IsEmpty)
+                return sb;
+
+            unsafe {
+                fixed (char* ptr = &data[0])
+                    return sb.Append(ptr, data.Length);
+            }
         }
     }
 }

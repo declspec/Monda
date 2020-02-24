@@ -9,13 +9,13 @@ namespace Monda {
             if (self == null || next == null)
                 throw new ArgumentNullException(self == null ? nameof(self) : nameof(next));
 
-            return new Parser<TSource, Tuple<TResult, TNext>>((data, start) => {
-                var selfRes = self.Parse(data, start);
+            return new Parser<TSource, Tuple<TResult, TNext>>((data, start, trace) => {
+                var selfRes = self.Parse(data, start, trace);
 
                 if (!selfRes.Success)
                     return ParseResult.Fail<Tuple<TResult, TNext>>();
 
-                var nextRes = next.Parse(data, start + selfRes.Length);
+                var nextRes = next.Parse(data, start + selfRes.Length, trace);
 
                 return nextRes.Success
                     ? ParseResult.Success(Tuple.Create(selfRes.Value, nextRes.Value), start, selfRes.Length + nextRes.Length)
@@ -27,13 +27,13 @@ namespace Monda {
             if (self == null || previous == null)
                 throw new ArgumentNullException(self == null ? nameof(self) : nameof(previous));
 
-            return new Parser<TSource, TResult>((data, start) => {
-                var previousRes = previous.Parse(data, start);
+            return new Parser<TSource, TResult>((data, start, trace) => {
+                var previousRes = previous.Parse(data, start, trace);
 
                 if (!previousRes.Success)
                     return ParseResult.Fail<TResult>();
 
-                var selfRes = self.Parse(data, start + previousRes.Length);
+                var selfRes = self.Parse(data, start + previousRes.Length, trace);
 
                 return selfRes.Success
                     ? ParseResult.Success(selfRes.Value, start, previousRes.Length + selfRes.Length)
@@ -45,13 +45,13 @@ namespace Monda {
             if (self == null || next == null)
                 throw new ArgumentNullException(self == null ? nameof(self) : nameof(next));
 
-            return new Parser<TSource, TResult>((data, start) => {
-                var selfRes = self.Parse(data, start);
+            return new Parser<TSource, TResult>((data, start, trace) => {
+                var selfRes = self.Parse(data, start, trace);
 
                 if (!selfRes.Success)
                     return selfRes;
 
-                var nextRes = next.Parse(data, start + selfRes.Length);
+                var nextRes = next.Parse(data, start + selfRes.Length, trace);
 
                 return nextRes.Success 
                     ? ParseResult.Success(selfRes.Value, start, selfRes.Length + nextRes.Length) 
@@ -63,9 +63,9 @@ namespace Monda {
             if (self == null || other == null)
                 throw new ArgumentNullException(self == null ? nameof(self) : nameof(other));
 
-            return new Parser<TSource, TResult>((data, start) => {
-                var res = self.Parse(data, start);
-                return res.Success ? res : other.Parse(data, start);
+            return new Parser<TSource, TResult>((data, start, trace) => {
+                var res = self.Parse(data, start, trace);
+                return res.Success ? res : other.Parse(data, start, trace);
             });
         }
 
@@ -80,21 +80,21 @@ namespace Monda {
             if (left == null || right == null)
                 throw new ArgumentNullException(left == null ? nameof(left) : nameof(right));
 
-            return new Parser<TSource, TResult>((data, start) => {
-                var leftRes = left.Parse(data, start);
+            return new Parser<TSource, TResult>((data, start, trace) => {
+                var leftRes = left.Parse(data, start, trace);
                 var length = 0;
 
                 if (!leftRes.Success)
                     return ParseResult.Fail<TResult>();
 
                 length += leftRes.Length;
-                var selfRes = self.Parse(data, start + length);
+                var selfRes = self.Parse(data, start + length, trace);
 
                 if (!selfRes.Success)
                     return ParseResult.Fail<TResult>();
 
                 length += selfRes.Length;
-                var rightRes = right.Parse(data, start + length);
+                var rightRes = right.Parse(data, start + length, trace);
 
                 if (!rightRes.Success)
                     return ParseResult.Fail<TResult>();
@@ -108,8 +108,8 @@ namespace Monda {
             if (self == null || map == null)
                 throw new ArgumentNullException(self == null ? nameof(self) : nameof(map));
 
-            return new Parser<TSource, TNext>((data, start) => {
-                var res = self.Parse(data, start);
+            return new Parser<TSource, TNext>((data, start, trace) => {
+                var res = self.Parse(data, start, trace);
                 return res.Success ? ParseResult.Success(map(res, data), start, res.Length) : ParseResult.Fail<TNext>();
             });
         }
@@ -128,12 +128,12 @@ namespace Monda {
             if (max.HasValue && max < min)
                 throw new ArgumentOutOfRangeException(nameof(max));
 
-            return new Parser<TSource, IReadOnlyList<TResult>>((data, start) => {
-                var values = new List<TResult>();
+            return new Parser<TSource, IReadOnlyList<TResult>>((data, start, trace) => {
+                var values = default(List<TResult>);
                 var length = 0;
 
                 while (max == default || values.Count < max) {
-                    var res = self.Parse(data, start + length);
+                    var res = self.Parse(data, start + length, trace);
 
                     if (!res.Success)
                         break;
@@ -141,12 +141,15 @@ namespace Monda {
                     if (res.Length == 0)
                         ThrowOverflow(nameof(Many));
 
+                    if (values == null)
+                        values = new List<TResult>();
+
                     values.Add(res.Value);
                     length += res.Length;
                 }
 
-                return values.Count >= min
-                    ? ParseResult.Success((IReadOnlyList<TResult>)values, start, length)
+                return min == 0 || values?.Count >= min
+                    ? ParseResult.Success((IReadOnlyList<TResult>)values ?? Array.Empty<TResult>(), start, length)
                     : ParseResult.Fail<IReadOnlyList<TResult>>();
             });
         }
@@ -158,20 +161,20 @@ namespace Monda {
             if (min < 0)
                 throw new ArgumentOutOfRangeException(nameof(min));
 
-            return new Parser<TSource, Tuple<IReadOnlyList<TResult>, TNext>>((data, start) => {
-                var values = new List<TResult>();
+            return new Parser<TSource, Tuple<IReadOnlyList<TResult>, TNext>>((data, start, trace) => {
+                var values = default(List<TResult>);
                 var length = 0;
 
                 while (true) {
-                    var nextRes = next.Parse(data, start + length);
+                    var nextRes = next.Parse(data, start + length, trace);
 
                     if (nextRes.Success) {
-                        return values.Count < min
-                            ? ParseResult.Fail<Tuple<IReadOnlyList<TResult>, TNext>>()
-                            : ParseResult.Success(new Tuple<IReadOnlyList<TResult>, TNext>(values, nextRes.Value), start, length + nextRes.Length);
+                        return min == 0 || values?.Count >= min
+                            ? ParseResult.Success(Tuple.Create((IReadOnlyList<TResult>)values ?? Array.Empty<TResult>(), nextRes.Value), start, length + nextRes.Length)
+                            : ParseResult.Fail<Tuple<IReadOnlyList<TResult>, TNext>>();
                     }
                     
-                    var res = self.Parse(data, start + length);
+                    var res = self.Parse(data, start + length, trace);
 
                     if (!res.Success)
                         return ParseResult.Fail<Tuple<IReadOnlyList<TResult>, TNext>>();
@@ -179,8 +182,11 @@ namespace Monda {
                     if (res.Length == 0)
                         ThrowOverflow(nameof(ManyUntil));
 
-                    length += res.Length;
+                    if (values == null)
+                        values = new List<TResult>();
+
                     values.Add(res.Value);
+                    length += res.Length;
                 }
             });
         }
@@ -199,12 +205,12 @@ namespace Monda {
             if (max.HasValue && max < min)
                 throw new ArgumentOutOfRangeException(nameof(max));
 
-            return new Parser<TSource, int>((data, start) => {
+            return new Parser<TSource, int>((data, start, trace) => {
                 var skipped = 0;
                 var length = 0;
 
                 while (max == default || skipped < max) {
-                    var res = self.Parse(data, start + length);
+                    var res = self.Parse(data, start + length, trace);
 
                     if (!res.Success)
                         break;
@@ -229,12 +235,12 @@ namespace Monda {
             if (min < 0)
                 throw new ArgumentOutOfRangeException(nameof(min));
 
-            return new Parser<TSource, Tuple<int, TNext>>((data, start) => {
+            return new Parser<TSource, Tuple<int, TNext>>((data, start, trace) => {
                 var skipped = 0;
                 var length = 0;
 
                 while (true) {
-                    var nextRes = next.Parse(data, start + length);
+                    var nextRes = next.Parse(data, start + length, trace);
 
                     if (nextRes.Success) {
                         return skipped < min
@@ -242,7 +248,7 @@ namespace Monda {
                             : ParseResult.Success(Tuple.Create(skipped, nextRes.Value), start, length + nextRes.Length);
                     }
 
-                    var res = self.Parse(data, start + length);
+                    var res = self.Parse(data, start + length, trace);
 
                     if (!res.Success)
                         return ParseResult.Fail<Tuple<int, TNext>>();
@@ -260,8 +266,8 @@ namespace Monda {
             if (self == null)
                 throw new ArgumentNullException(nameof(self));
 
-            return new Parser<TSource, TResult>((data, start) => {
-                var res = self.Parse(data, start);
+            return new Parser<TSource, TResult>((data, start, trace) => {
+                var res = self.Parse(data, start, trace);
                 return res.Success ? res : ParseResult.Success(defaultValue, start, 0);
             }); 
         }

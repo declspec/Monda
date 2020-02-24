@@ -5,21 +5,26 @@ using System.Text;
 namespace Monda.Yang {
     public static partial class YangParser {
         private static readonly Parser<char, Range> LineCommentParser = Parser.Match<char>(ch => ch != '\n')
-            .PrecededBy(Parser.Literal("//".AsMemory()));
+            .PrecededBy(Parser.Literal("//".AsMemory()))
+            .WithName(nameof(LineCommentParser));
 
         private static readonly Parser<char, Range> BlockCommentParser = Parser.MatchUntil(ch => true, Parser.Literal("*/".AsMemory()))
+            .PrecededBy(Parser.Literal("/*".AsMemory()))
             .Map((res, data) => res.Value.Item1)
-            .PrecededBy(Parser.Literal("/*".AsMemory()));
+            .WithName(nameof(BlockCommentParser));
 
-        private static readonly Parser<char, Range> CommentParser = LineCommentParser.Or(BlockCommentParser);
+        private static readonly Parser<char, Range> CommentParser = LineCommentParser.Or(BlockCommentParser)
+            .WithName(nameof(CommentParser));
 
         public static readonly Parser<char, int> SeparatorParser = Parser.Match<char>(char.IsWhiteSpace, 1)
             .Or(CommentParser)
-            .SkipMany(1);
+            .SkipMany(1)
+            .WithName(nameof(SeparatorParser));
 
-        private static readonly Parser<char, int> OptionalSeparatorParser = SeparatorParser.Optional();
+        private static readonly Parser<char, int> OptionalSeparatorParser = SeparatorParser.Optional()
+            .WithName(nameof(OptionalSeparatorParser));
 
-        private static readonly Parser<char, string> IdentifierParser = new Parser<char, string>((data, start) => {
+        private static readonly Parser<char, string> IdentifierParser = new Parser<char, string>(nameof(IdentifierParser), (data, start, trace) => {
             var pos = start;
 
             while (pos < data.Length) {
@@ -43,17 +48,19 @@ namespace Monda.Yang {
         public static readonly Parser<char, Tuple<string, string>> KeywordParser = IdentifierParser
             .FollowedBy(Parser.Is(':'))
             .Optional()
-            .Then(IdentifierParser);
+            .Then(IdentifierParser)
+            .WithName(nameof(KeywordParser));
 
         private static readonly Parser<char, string> SingleQuotedStringParser = Parser.Match<char>(ch => ch != '\'')
             .Between(Parser.Is('\''))
-            .Map(CopyToString);
+            .Map(CopyToString)
+            .WithName(nameof(SingleQuotedStringParser));
 
-        private static readonly Parser<char, Range> EscapeSequencesParser = new Parser<char, Range>((data, start) => {
+        private static readonly Parser<char, Range> EscapeSequencesParser = new Parser<char, Range>(nameof(EscapeSequencesParser), (data, start, trace) => {
             var pos = start;
 
             while ((pos + 1) < data.Length && data[pos] == '\\')
-                ++pos;
+                pos += 2;
 
             return pos == start ? ParseResult.Fail(Range.Failure) : ParseResult.Success(new Range(start, pos - start), start, pos - start);
         });
@@ -61,22 +68,24 @@ namespace Monda.Yang {
         private static readonly Parser<char, string> DoubleQuotedStringParser = Parser.Match<char>(ch => ch != '\\' && ch != '"', 1)
             .Then(EscapeSequencesParser.Optional(Range.Failure))
             .Many()
-            .Optional()
             .Between(Parser.Is('"'))
-            .Map(CopyToEscapedString);
+            .Map(CopyToEscapedString)
+            .WithName(nameof(DoubleQuotedStringParser));
 
         private static readonly Parser<char, string> UnquotedAgumentParser = Parser.MatchUntil(ch => "'\";{}".IndexOf(ch) < 0, SeparatorParser)
-            .Map((res, data) => data.Slice(res.Value.Item1.Start, res.Value.Item1.Length).ToString());
+            .Map((res, data) => data.Slice(res.Value.Item1.Start, res.Value.Item1.Length).ToString())
+            .WithName(nameof(UnquotedAgumentParser));
 
-        private static readonly Parser<char, char> ConcatParser = Parser.Is('+').Between(OptionalSeparatorParser);
+        private static readonly Parser<char, char> ConcatParser = Parser.Is('+').Between(OptionalSeparatorParser)
+            .WithName(nameof(ConcatParser));
 
         private static readonly Parser<char, string> QuotedArgumentParser = DoubleQuotedStringParser.Or(SingleQuotedStringParser)
             .Then(DoubleQuotedStringParser.Or(SingleQuotedStringParser)
                 .PrecededBy(ConcatParser)
-                .Many()
-                .Optional())
+                .Many())
             .Map((res, data) => {
-                if (!(res.Value.Item2?.Count > 0))
+                // If there are no concatenated strings just return the original
+                if (!(res.Value.Item2.Count > 0))
                     return res.Value.Item1;
 
                 var len = res.Value.Item1.Length;
@@ -84,34 +93,58 @@ namespace Monda.Yang {
                 foreach (var str in res.Value.Item2)
                     len += str.Length;
 
-                return StringUtlities.CreateString(len, res.Value, (span, state) => {
-                    var offset = state.Item1.Length;
+                // Build a fixed-length string and copy the initial value, plus all concantenations into it.
+                return StringUtilities.CreateString(len, res.Value, (span, state) => {
                     state.Item1.AsSpan().CopyTo(span);
+                    span = span.Slice(state.Item1.Length);
 
                     foreach (var str in state.Item2) {
-                        span = span.Slice(offset);
                         str.AsSpan().CopyTo(span);
-                        offset += str.Length;
+                        span = span.Slice(str.Length);
                     }
                 });
-            });
+            })
+            .WithName(nameof(QuotedArgumentParser));
 
-        private static readonly Parser<char, string> ArgumentParser = UnquotedAgumentParser
-            .Or(QuotedArgumentParser);
+        private static readonly Parser<char, string> ArgumentParser = QuotedArgumentParser
+            .Or(UnquotedAgumentParser)
+            .WithName(nameof(ArgumentParser));
 
-        private static readonly Parser<char, YangStatement> StatementParser = KeywordParser
+        private static readonly Parser<char, Tuple<Tuple<string, string>, string>> StatementStartParser = KeywordParser
             .Then(ArgumentParser.PrecededBy(SeparatorParser))
-            .Then(Parser.Is(';').Map((res, data) => default(IReadOnlyList<YangStatement>))
-                .Or(SeparatorParser
-                    .SkipMany()
-                    .Map((res, data) => default(IReadOnlyList<YangStatement>))
-                    .Between(Parser.Is('{'), Parser.Is('}'))))
-                .PrecededBy(OptionalSeparatorParser)
-            .Map((res, data) => new YangStatement(res.Value.Item1.Item1.Item1, res.Value.Item1.Item1.Item2, res.Value.Item1.Item2, res.Value.Item2));
+            .WithName(nameof(StatementStartParser));
 
-        private static readonly Parser<char, IReadOnlyList<YangStatement>> MultipleStatementParser = StatementParser
-            .Many(1);
+        // Unfortunately you cannot have a variable initialiser refer to itself in C#
+        //  which means we cannot declare recursive parser definitions like this statically.
+        //  Instead, we'll need to compose it manually and deal with the verbosity
+        private static readonly Parser<char, YangStatement> SingleStatementParser = new Parser<char, YangStatement>(nameof(SingleStatementParser), (data, start, trace) => {
+            var startResult = StatementStartParser.Parse(data, start, trace);
+            var length = 0;
 
+            if (!startResult.Success)
+                return ParseResult.Fail<YangStatement>();
+
+            length += startResult.Length;
+            var keyword = startResult.Value.Item1;
+            var argument = startResult.Value.Item2;
+            var substatementResult = SubstatementParser.Parse(data, start + length, trace);
+
+            return substatementResult.Success
+                ? ParseResult.Success(new YangStatement(keyword.Item1, keyword.Item2, argument, substatementResult.Value), start, length + substatementResult.Length)
+                : ParseResult.Fail<YangStatement>();
+        });
+
+
+        private static readonly Parser<char, IReadOnlyList<YangStatement>> StatementParser = SingleStatementParser
+            .Between(OptionalSeparatorParser)
+            .Many()
+            .WithName(nameof(StatementParser));
+
+        private static readonly Parser<char, IReadOnlyList<YangStatement>> SubstatementParser = Parser.Is(';')
+            .Map((res, data) => default(IReadOnlyList<YangStatement>))
+            .Or(StatementParser.Between(Parser.Is('{'), Parser.Is('}')))
+            .PrecededBy(OptionalSeparatorParser)
+            .WithName(nameof(SubstatementParser));
 
         //
         // Mapping helpers
@@ -125,13 +158,14 @@ namespace Monda.Yang {
             // This map function is very complicated
             // It should handle all of the YANG escaping/indenting in double quoted string rules from https://tools.ietf.org/html/rfc7950
             // It should also perform as few allocations as possible; it is a relatively hot path in the parser
+            var strlen = result.Length - 2; // Account for surrounding double quotes
 
             // Easy option 1) Empty string
-            if (result.Length == 0)
+            if (strlen == 0)
                 return string.Empty;
 
-            // Easy option 2) No escape characters and no newlines
-            if (result.Value[0].Item1.Length == result.Length) {
+            // Easy option 2) No escape characters and no newlines (ignoring starting/trailing double quotes
+            if (result.Value[0].Item1.Length == strlen) {
                 var slice = data.Slice(result.Value[0].Item1.Start, result.Value[0].Item1.Length);
 
                 if (slice.IndexOf('\n') < 0)
@@ -142,15 +176,15 @@ namespace Monda.Yang {
             // i.e
             //      "string starts here
             //          indents here"
-            // Should have a 4-space indent, not 8. Tabs are counted as 8 spaces as per the spec.
-            var pos = result.Start;
+            // The 2nd line should have a 4-space indent, not 8. Tabs are counted as 8 spaces as per the spec.
+            var pos = result.Start + 1; // skip opening quote
             var origin = data.Slice(0, pos).LastIndexOf('\n') + 1; // Find the previous newline and start from there
             var tabcount = CountOccurences(data.Slice(origin, pos - origin), '\t');
             var indent = (pos - origin - tabcount) + (tabcount * 8); // Number of characters minus number of tabs, plus number of tabs * tabsize (8).
 
             // Build the escaped string
-            // TODO: Maybe some analysis on how often the final StringBuilder.Length is < result.Length
-            var sb = new StringBuilder(result.Length);
+            // TODO: Maybe some analysis on how often the final StringBuilder.Length is < strlen
+            var sb = new StringBuilder(strlen);
 
             foreach (var value in result.Value) {
                 // Handle the first item in the Tuple: the string without escape characters
@@ -180,7 +214,7 @@ namespace Monda.Yang {
             var newline = str.IndexOf('\n');
 
             while (newline >= 0) {
-                Append(sb, str.Slice(0, ++newline));
+                StringUtilities.Append(sb, str.Slice(0, ++newline));
 
                 // Try and offset by the indent, but stop if a newline / non whitespace
                 // character is encountered so we don't truncate data
@@ -196,7 +230,7 @@ namespace Monda.Yang {
                 newline = str.IndexOf('\n');
             }
 
-            return Append(sb, str);
+            return StringUtilities.Append(sb, str);
         }
 
         private static StringBuilder AppendEscapedString(StringBuilder sb, ReadOnlySpan<char> str) {
@@ -217,22 +251,13 @@ namespace Monda.Yang {
                         break;
                     default:
                         // Unknown escape sequence, just append it
-                        Append(sb, str.Slice(i, 2));
+                        sb.Append('\\');
+                        sb.Append(str[i + 1]);
                         break;
                 }
             }
 
             return sb;
-        }
-
-        private static StringBuilder Append(StringBuilder sb, in ReadOnlySpan<char> data) {
-            if (data.IsEmpty)
-                return sb;
-
-            unsafe {
-                fixed (char* ptr = &data[0]) 
-                    return sb.Append(ptr, data.Length);
-            }
         }
     }
 }

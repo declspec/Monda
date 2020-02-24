@@ -4,11 +4,11 @@ using System.Text;
 
 namespace Monda.Csv {
     public static partial class CsvParser {
-        private static Parser<char, char> EofParser = new Parser<char, char>((data, start) => {
+        private static Parser<char, char> EofParser = new Parser<char, char>((data, start, trace) => {
             return start == data.Length ? ParseResult.Success('\0', start, 0) : ParseResult.Fail<char>();
         });
 
-        private static Parser<char, Range> EscapedDoubleQuotes = new Parser<char, Range>((data, start) => {
+        private static Parser<char, Range> EscapedDoubleQuotes = new Parser<char, Range>((data, start, trace) => {
             var pos = start;
 
             while ((pos + 1) < data.Length && (data[pos] == '"' && data[pos + 1] == '"')) {
