@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Monda {
     public delegate ParseResult<TResult> ParseFunction<TSource, TResult>(ReadOnlySpan<TSource> data, int start, ParserTrace trace);
     public delegate bool ParserPredicate<TSource>(ReadOnlySpan<TSource> data, int index);
-    public delegate int TakeFunction<TSource>(ReadOnlySpan<TSource> data, int index);
 
     public class Parser<TSource, TResult> {
         public string Name { get; private set; }
@@ -87,8 +87,8 @@ namespace Monda {
         /// <typeparam name="TSource">Type of the underlying data</typeparam>
         /// <param name="value"><see cref="ReadOnlyMemory{T}"/> containing the sequence of <typeparamref name="TSource"/> elements to compare</param>
         /// <returns>A <see cref="Parser{TSource, TResult}"/> that will succeed if the sequence of <typeparamref name="TSource"/> elements at the parser's current position equals <paramref name="value"/></returns>
-        public static Parser<TSource, ReadOnlyMemory<TSource>> Is<TSource>(ReadOnlyMemory<TSource> value) {
-            return Is(value, EqualityComparer<TSource>.Default);
+        public static Parser<TSource, IReadOnlyList<TSource>> IsSequence<TSource>(IReadOnlyList<TSource> value) {
+            return IsSequence(value, EqualityComparer<TSource>.Default);
         }
 
         /// <summary>
@@ -100,25 +100,23 @@ namespace Monda {
         /// <returns>A <see cref="Parser{TSource, TResult}"/> that will succeed if the sequence of <typeparamref name="TSource"/> elements at the parser's current position equals <paramref name="value"/></returns>
         /// <exception cref="ArgumentException"><paramref name="value"/> is empty</exception>
         /// <exception cref="ArgumentNullException"><paramref name="comparer"/> is null</exception>
-        public static Parser<TSource, ReadOnlyMemory<TSource>> Is<TSource>(ReadOnlyMemory<TSource> value, IEqualityComparer<TSource> comparer) {
-            if (value.IsEmpty)
-                throw new ArgumentException("input sequence is empty", nameof(value));
+        public static Parser<TSource, IReadOnlyList<TSource>> IsSequence<TSource>(IReadOnlyList<TSource> value, IEqualityComparer<TSource> comparer) {
+            if (value == null || comparer == null)
+                throw new ArgumentNullException(value == null ? nameof(value) : nameof(comparer));
 
-            if (comparer == null)
-                throw new ArgumentNullException(nameof(comparer));
+            if (value.Count == 0)
+                throw new ArgumentException("input list is empty", nameof(value));
 
-            return new Parser<TSource, ReadOnlyMemory<TSource>>((data, start, trace) => {
-                if ((data.Length - start) < value.Length)
-                    return ParseResult.Fail<ReadOnlyMemory<TSource>>();
+            return new Parser<TSource, IReadOnlyList<TSource>>((data, start, trace) => {
+                if ((data.Length - start) < value.Count)
+                    return ParseResult.Fail<IReadOnlyList<TSource>>();
 
-                var span = value.Span;
-
-                for (var i = 0; i < span.Length; ++i) {
-                    if (!comparer.Equals(data[start + i], span[i]))
-                        return ParseResult.Fail<ReadOnlyMemory<TSource>>();
+                for (var i = 0; i < value.Count; ++i) {
+                    if (!comparer.Equals(data[start + i], value[i]))
+                        return ParseResult.Fail<IReadOnlyList<TSource>>();
                 }
 
-                return ParseResult.Success(value, start, value.Length);
+                return ParseResult.Success(value, start, value.Count);
             });
         }
 
@@ -150,37 +148,37 @@ namespace Monda {
             });
         }
 
-        public static Parser<TSource, TSource> IsAny<TSource>(ReadOnlyMemory<TSource> value) {
+        public static Parser<TSource, TSource> IsAny<TSource>(IReadOnlyList<TSource> value) {
             return IsAny(value, EqualityComparer<TSource>.Default);
         }
 
-        public static Parser<TSource, TSource> IsAny<TSource>(ReadOnlyMemory<TSource> value, IEqualityComparer<TSource> comparer) {
-            if (value.IsEmpty)
-                throw new ArgumentException("input sequence is empty", nameof(value));
+        public static Parser<TSource, TSource> IsAny<TSource>(IReadOnlyList<TSource> values, IEqualityComparer<TSource> comparer) {
+            if (values == null || comparer == null)
+                throw new ArgumentNullException(values == null ? nameof(values) : nameof(comparer));
 
-            if (comparer == null)
-                throw new ArgumentNullException(nameof(comparer));
+            if (values.Count == 0)
+                throw new ArgumentException("input list is empty", nameof(values));
 
             return new Parser<TSource, TSource>((data, start, trace) => {
-                return start < data.Length && SpanUtilities.Contains(value.Span, data[start], comparer)
+                return start < data.Length && values.Contains(data[start], comparer)
                     ? ParseResult.Success(data[start], start, 1)
                     : ParseResult.Fail<TSource>();
             });
         }
 
-        public static Parser<TSource, TSource> IsNotAny<TSource>(ReadOnlyMemory<TSource> value) {
-            return IsNotAny(value, EqualityComparer<TSource>.Default);
+        public static Parser<TSource, TSource> IsNotAny<TSource>(IReadOnlyList<TSource> values) {
+            return IsNotAny(values, EqualityComparer<TSource>.Default);
         }
 
-        public static Parser<TSource, TSource> IsNotAny<TSource>(ReadOnlyMemory<TSource> value, IEqualityComparer<TSource> comparer) {
-            if (value.IsEmpty)
-                throw new ArgumentException("input sequence is empty", nameof(value));
+        public static Parser<TSource, TSource> IsNotAny<TSource>(IReadOnlyList<TSource> values, IEqualityComparer<TSource> comparer) {
+            if (values == null || comparer == null)
+                throw new ArgumentNullException(values == null ? nameof(values) : nameof(comparer));
 
-            if (comparer == null)
-                throw new ArgumentNullException(nameof(comparer));
+            if (values.Count == 0)
+                throw new ArgumentException("input list is empty", nameof(values));
 
             return new Parser<TSource, TSource>((data, start, trace) => {
-                return start < data.Length && !SpanUtilities.Contains(value.Span, data[start], comparer)
+                return start < data.Length && !values.Contains(data[start], comparer)
                     ? ParseResult.Success(data[start], start, 1)
                     : ParseResult.Fail<TSource>();
             });

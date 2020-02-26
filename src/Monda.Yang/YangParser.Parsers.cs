@@ -8,11 +8,11 @@ namespace Monda.Yang {
             .WithName(nameof(EndStatementParser));
 
         private static readonly Parser<char, Range> LineCommentParser = Parser.TakeWhile<char>(ch => ch != '\n')
-            .PrecededBy(Parser.Is("//".AsMemory()))
+            .PrecededBy(Parser.IsSequence("//".ToCharArray()))
             .WithName(nameof(LineCommentParser));
 
-        private static readonly Parser<char, Range> BlockCommentParser = Parser.TakeUntil(Parser.Is("*/".AsMemory()))
-            .PrecededBy(Parser.Is("/*".AsMemory()))
+        private static readonly Parser<char, Range> BlockCommentParser = Parser.TakeUntil(Parser.IsSequence("*/".ToCharArray()))
+            .PrecededBy(Parser.IsSequence("/*".ToCharArray()))
             .Map((res, data) => res.Value.Item1)
             .WithName(nameof(BlockCommentParser));
 
