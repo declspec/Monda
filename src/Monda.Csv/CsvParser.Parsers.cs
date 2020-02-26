@@ -20,10 +20,10 @@ namespace Monda.Csv {
                 : ParseResult.Success(new Range(start, pos - start), start, pos - start);
         });
 
-        private static Parser<char, string> UnquotedStringParser = Parser.Match<char>(ch => ch != '\n' && ch != ',')
+        private static Parser<char, string> UnquotedStringParser = Parser.TakeWhile<char>(ch => ch != '\n' && ch != ',')
             .Map((res, data) => res.Length == 0 ? string.Empty : data.Slice(res.Start, res.Length).ToString());
 
-        private static Parser<char, string> QuotedStringParser = Parser.Match<char>(ch => ch != '"', 1)
+        private static Parser<char, string> QuotedStringParser = Parser.TakeWhile<char>(ch => ch != '"', 1)
             .Then(EscapedDoubleQuotes.Optional(Range.Failure))
             .Many()
             .Map((res, data) => {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 namespace Monda {
     public delegate TOut MapFunction<TSource, TIn, TOut>(ParseResult<TIn> result, ReadOnlySpan<TSource> data);
+    public delegate bool TryMapFunction<TSource, TIn, TOut>(ParseResult<TIn> result, ReadOnlySpan<TSource> data, out TOut mapped);
 
     public static class Extensions {
         public static Parser<TSource, Tuple<TResult, TNext>> Then<TSource, TResult, TNext>(this Parser<TSource, TResult> self, Parser<TSource, TNext> next) {
@@ -105,12 +106,21 @@ namespace Monda {
         }
 
         public static Parser<TSource, TNext> Map<TSource, TResult, TNext>(this Parser<TSource, TResult> self, MapFunction<TSource, TResult, TNext> map) {
-            if (self == null || map == null)
-                throw new ArgumentNullException(self == null ? nameof(self) : nameof(map));
+            return TryMap(self, (ParseResult<TResult> res, ReadOnlySpan<TSource> data, out TNext next) => {
+                next = map(res, data);
+                return true;
+            });
+        }
+
+        public static Parser<TSource, TNext> TryMap<TSource, TResult, TNext>(this Parser<TSource, TResult> self, TryMapFunction<TSource, TResult, TNext> tryMap) {
+            if (self == null || tryMap == null)
+                throw new ArgumentNullException(self == null ? nameof(self) : nameof(tryMap));
 
             return new Parser<TSource, TNext>((data, start, trace) => {
                 var res = self.Parse(data, start, trace);
-                return res.Success ? ParseResult.Success(map(res, data), start, res.Length) : ParseResult.Fail<TNext>();
+                return res.Success && tryMap(res, data, out var mapped)
+                    ? ParseResult.Success(mapped, res.Start, res.Length)
+                    : ParseResult.Fail<TNext>();
             });
         }
 

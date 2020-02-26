@@ -4,19 +4,22 @@ using System.Text;
 
 namespace Monda.Yang {
     public static partial class YangParser {
-        private static readonly Parser<char, Range> LineCommentParser = Parser.Match<char>(ch => ch != '\n')
-            .PrecededBy(Parser.Literal("//".AsMemory()))
+        private static readonly Parser<char, char> EndStatementParser = Parser.Is(';')
+            .WithName(nameof(EndStatementParser));
+
+        private static readonly Parser<char, Range> LineCommentParser = Parser.TakeWhile<char>(ch => ch != '\n')
+            .PrecededBy(Parser.Is("//".AsMemory()))
             .WithName(nameof(LineCommentParser));
 
-        private static readonly Parser<char, Range> BlockCommentParser = Parser.MatchUntil(ch => true, Parser.Literal("*/".AsMemory()))
-            .PrecededBy(Parser.Literal("/*".AsMemory()))
+        private static readonly Parser<char, Range> BlockCommentParser = Parser.TakeUntil(Parser.Is("*/".AsMemory()))
+            .PrecededBy(Parser.Is("/*".AsMemory()))
             .Map((res, data) => res.Value.Item1)
             .WithName(nameof(BlockCommentParser));
 
         private static readonly Parser<char, Range> CommentParser = LineCommentParser.Or(BlockCommentParser)
             .WithName(nameof(CommentParser));
 
-        public static readonly Parser<char, int> SeparatorParser = Parser.Match<char>(char.IsWhiteSpace, 1)
+        public static readonly Parser<char, int> SeparatorParser = Parser.TakeWhile<char>(char.IsWhiteSpace, 1)
             .Or(CommentParser)
             .SkipMany(1)
             .WithName(nameof(SeparatorParser));
@@ -24,26 +27,18 @@ namespace Monda.Yang {
         private static readonly Parser<char, int> OptionalSeparatorParser = SeparatorParser.Optional()
             .WithName(nameof(OptionalSeparatorParser));
 
-        private static readonly Parser<char, string> IdentifierParser = new Parser<char, string>(nameof(IdentifierParser), (data, start, trace) => {
-            var pos = start;
+        // Identifier must start with an underscore or letter and then be followed by letters, digits, periods or hyphens
+        private static ParserPredicate<char> IdentifierPredicate = (data, index) => data[index] == '_' 
+            || char.IsLetter(data[index]) 
+            || (index > 0 && (data[index] == '.' || data[index] == '-' || char.IsDigit(data[index]))); // Can be . or - or digit iif not the first character.
 
-            while (pos < data.Length) {
-                var ch = data[pos];
-
-                // char must be an underscore or letter when it is the first char
-                // otherwise, it may also be a full-stop, hyphen or digit.
-                if (ch != '_' && !char.IsLetter(ch) && (pos == start || (ch != '.' && ch != '-' && !char.IsDigit(ch))))
-                    break;
-
-                ++pos;
-            }
-
-            var id = data.Slice(start, pos - start);
-
-            return id.IsEmpty || id.StartsWith("xml".AsSpan(), StringComparison.OrdinalIgnoreCase)
-                ? ParseResult.Fail<string>()
-                : ParseResult.Success(id.ToString(), start, pos - start);
-        });
+        private static readonly Parser<char, string> IdentifierParser = Parser.TakeWhile(IdentifierPredicate, 1)
+            .TryMap((ParseResult<Range> res, ReadOnlySpan<char> data, out string next) => {
+                var id = data.Slice(res.Start, res.Length);
+                next = id.StartsWith("xml".AsSpan(), StringComparison.OrdinalIgnoreCase) ? null : id.ToString();
+                return next != null;
+            })
+            .WithName(nameof(IdentifierParser));
 
         public static readonly Parser<char, Tuple<string, string>> KeywordParser = IdentifierParser
             .FollowedBy(Parser.Is(':'))
@@ -51,7 +46,7 @@ namespace Monda.Yang {
             .Then(IdentifierParser)
             .WithName(nameof(KeywordParser));
 
-        private static readonly Parser<char, string> SingleQuotedStringParser = Parser.Match<char>(ch => ch != '\'')
+        private static readonly Parser<char, string> SingleQuotedStringParser = Parser.TakeWhile<char>(ch => ch != '\'')
             .Between(Parser.Is('\''))
             .Map(CopyToString)
             .WithName(nameof(SingleQuotedStringParser));
@@ -65,16 +60,20 @@ namespace Monda.Yang {
             return pos == start ? ParseResult.Fail(Range.Failure) : ParseResult.Success(new Range(start, pos - start), start, pos - start);
         });
 
-        private static readonly Parser<char, string> DoubleQuotedStringParser = Parser.Match<char>(ch => ch != '\\' && ch != '"', 1)
+        private static readonly Parser<char, string> DoubleQuotedStringParser = Parser.TakeWhile<char>(ch => ch != '\\' && ch != '"', 1)
             .Then(EscapeSequencesParser.Optional(Range.Failure))
             .Many()
             .Between(Parser.Is('"'))
             .Map(CopyToEscapedString)
             .WithName(nameof(DoubleQuotedStringParser));
 
-        private static readonly Parser<char, string> UnquotedAgumentParser = Parser.MatchUntil(ch => "'\";{}".IndexOf(ch) < 0, SeparatorParser)
-            .Map((res, data) => data.Slice(res.Value.Item1.Start, res.Value.Item1.Length).ToString())
-            .WithName(nameof(UnquotedAgumentParser));
+        private static ParserPredicate<char> UnquotedArgumentPredicate = (data, index) => !char.IsWhiteSpace(data[index]) // No whitespace
+            && "';{}\"".IndexOf(data[index]) < 0 // Illegal characters from RFC7950
+            && (data[index] != '/' || (index + 1) >= data.Length || (data[index + 1] != '*' && data[index + 1] != '/')); // Respect line/block comments
+         
+        private static Parser<char, string> UnquotedArgumentParser = Parser.TakeWhile(UnquotedArgumentPredicate, 1)
+            .Map(CopyToString)
+            .WithName(nameof(UnquotedArgumentParser));
 
         private static readonly Parser<char, char> ConcatParser = Parser.Is('+').Between(OptionalSeparatorParser)
             .WithName(nameof(ConcatParser));
@@ -107,7 +106,7 @@ namespace Monda.Yang {
             .WithName(nameof(QuotedArgumentParser));
 
         private static readonly Parser<char, string> ArgumentParser = QuotedArgumentParser
-            .Or(UnquotedAgumentParser)
+            .Or(UnquotedArgumentParser)
             .WithName(nameof(ArgumentParser));
 
         private static readonly Parser<char, Tuple<Tuple<string, string>, string>> StatementStartParser = KeywordParser
@@ -133,7 +132,6 @@ namespace Monda.Yang {
                 ? ParseResult.Success(new YangStatement(keyword.Item1, keyword.Item2, argument, substatementResult.Value), start, length + substatementResult.Length)
                 : ParseResult.Fail<YangStatement>();
         });
-
 
         private static readonly Parser<char, IReadOnlyList<YangStatement>> StatementParser = SingleStatementParser
             .Between(OptionalSeparatorParser)
@@ -214,6 +212,7 @@ namespace Monda.Yang {
             var newline = str.IndexOf('\n');
 
             while (newline >= 0) {
+                // https://tools.ietf.org/html/rfc7950#section-6.1.3 trim trailing whitespace before each newline
                 StringUtilities.Append(sb, str.Slice(0, ++newline));
 
                 // Try and offset by the indent, but stop if a newline / non whitespace
@@ -236,6 +235,7 @@ namespace Monda.Yang {
         private static StringBuilder AppendEscapedString(StringBuilder sb, ReadOnlySpan<char> str) {
             // Escape strings are always in the following format (see parser)
             // \x\y\z\a\b\c
+            // where length is always a multiple of two and every odd index is a backslash.
             for (var i = 0; i < str.Length; i += 2) {
                 switch (str[i + 1]) {
                     // Currently only 4 recognised escape sequences according to RFC7950

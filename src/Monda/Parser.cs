@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 
 namespace Monda {
     public delegate ParseResult<TResult> ParseFunction<TSource, TResult>(ReadOnlySpan<TSource> data, int start, ParserTrace trace);
+    public delegate bool ParserPredicate<TSource>(ReadOnlySpan<TSource> data, int index);
+    public delegate int TakeFunction<TSource>(ReadOnlySpan<TSource> data, int index);
 
     public class Parser<TSource, TResult> {
         public string Name { get; private set; }
@@ -55,27 +56,57 @@ namespace Monda {
     /// Static Parser helper methods
     /// </summary>
     public static class Parser {
-        public static Parser<TSource, TSource> Is<TSource>(TSource value) where TSource : IEquatable<TSource> {
+        /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}"/> that matches and yields a single <typeparamref name="TSource"/> element using the default comparer for <typeparamref name="TSource"/>
+        /// </summary>
+        /// <typeparam name="TSource">Type of the underlying data</typeparam>
+        /// <param name="value">Element to match</param>
+        /// <returns>A parser that will succeed if the <typeparamref name="TSource"/> element at the parser's current position equals <paramref name="value"/></returns>
+        public static Parser<TSource, TSource> Is<TSource>(TSource value) {
+            return Is(value, EqualityComparer<TSource>.Default);
+        }
+
+        /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}"/> that matches and yields a single <typeparamref name="TSource"/> element using a specified <see cref="IEqualityComparer{T}"/>
+        /// </summary>
+        /// <typeparam name="TSource">Type of the underlying data</typeparam>
+        /// <param name="value">Element to compare</param>
+        /// <param name="comparer">Comparer to use to determine equality between <typeparamref name="TSource"/> elements</param>
+        /// <returns>A <see cref="Parser{TSource, TResult}"/> that will succeed if the <typeparamref name="TSource"/> element at the parser's current position equals <paramref name="value"/></returns>
+        public static Parser<TSource, TSource> Is<TSource>(TSource value, IEqualityComparer<TSource> comparer) {
             return new Parser<TSource, TSource>((data, start, trace) => {
-                return start < data.Length && data[start].Equals(value)
+                return start < data.Length && comparer.Equals(data[start], value)
                     ? ParseResult.Success(value, start, 1)
                     : ParseResult.Fail<TSource>();
             });
         }
 
-        public static Parser<TSource, TSource> IsNot<TSource>(TSource value) where TSource : IEquatable<TSource> {
-            return new Parser<TSource, TSource>((data, start, trace) => {
-                return start < data.Length && !data[start].Equals(value)
-                    ? ParseResult.Success(value, start, 1)
-                    : ParseResult.Fail<TSource>();
-            });
+        /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}"/> that matches and yields a sequence of <typeparamref name="TSource"/> elements using the default comparer for <typeparamref name="TSource"/>
+        /// </summary>
+        /// <typeparam name="TSource">Type of the underlying data</typeparam>
+        /// <param name="value"><see cref="ReadOnlyMemory{T}"/> containing the sequence of <typeparamref name="TSource"/> elements to compare</param>
+        /// <returns>A <see cref="Parser{TSource, TResult}"/> that will succeed if the sequence of <typeparamref name="TSource"/> elements at the parser's current position equals <paramref name="value"/></returns>
+        public static Parser<TSource, ReadOnlyMemory<TSource>> Is<TSource>(ReadOnlyMemory<TSource> value) {
+            return Is(value, EqualityComparer<TSource>.Default);
         }
 
-        public static Parser<TSource, ReadOnlyMemory<TSource>> Literal<TSource>(ReadOnlyMemory<TSource> value) {
-            return Literal(value, EqualityComparer<TSource>.Default);
-        }
+        /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}"/> that matches and yields a sequence of <typeparamref name="TSource"/> elements using the specified comparer
+        /// </summary>
+        /// <typeparam name="TSource">Type of the underlying data</typeparam>
+        /// <param name="value"><see cref="ReadOnlyMemory{T}"/> containing the sequence of <typeparamref name="TSource"/> elements to compare</param>
+        /// <param name="comparer">Comparer to use to determine equality between <typeparamref name="TSource"/> elements</param>
+        /// <returns>A <see cref="Parser{TSource, TResult}"/> that will succeed if the sequence of <typeparamref name="TSource"/> elements at the parser's current position equals <paramref name="value"/></returns>
+        /// <exception cref="ArgumentException"><paramref name="value"/> is empty</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="comparer"/> is null</exception>
+        public static Parser<TSource, ReadOnlyMemory<TSource>> Is<TSource>(ReadOnlyMemory<TSource> value, IEqualityComparer<TSource> comparer) {
+            if (value.IsEmpty)
+                throw new ArgumentException("input sequence is empty", nameof(value));
 
-        public static Parser<TSource, ReadOnlyMemory<TSource>> Literal<TSource>(ReadOnlyMemory<TSource> value, IEqualityComparer<TSource> comparer) {
+            if (comparer == null)
+                throw new ArgumentNullException(nameof(comparer));
+
             return new Parser<TSource, ReadOnlyMemory<TSource>>((data, start, trace) => {
                 if ((data.Length - start) < value.Length)
                     return ParseResult.Fail<ReadOnlyMemory<TSource>>();
@@ -91,57 +122,131 @@ namespace Monda {
             });
         }
 
-        public static Parser<TSource, Range> Match<TSource>(Func<TSource, bool> test, int min = 0, int? max = default) {
-            if (test == null)
-                throw new ArgumentNullException(nameof(test));
+        /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}"/> that matches and yields the inverse of single <typeparamref name="TSource"/> element using a specified <see cref="IEqualityComparer{T}"/>
+        /// </summary>
+        /// <typeparam name="TSource">Type of the underlying data</typeparam>
+        /// <param name="value">Element to compare</param>
+        /// <returns>A <see cref="Parser{TSource, TResult}"/> that yields the <typeparamref name="TSource"/> element at the parser's current position if it does not equal <paramref name="value"/></returns>
+        public static Parser<TSource, TSource> IsNot<TSource>(TSource value) {
+            return IsNot(value, EqualityComparer<TSource>.Default);
+        }
+
+        /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}"/> that matches and yields the inverse of single <typeparamref name="TSource"/> element using a specified <see cref="IEqualityComparer{T}"/>
+        /// </summary>
+        /// <typeparam name="TSource">Type of the underlying data</typeparam>
+        /// <param name="value">Element to compare</param>
+        /// <returns>A <see cref="Parser{TSource, TResult}"/> that yields the <typeparamref name="TSource"/> element at the parser's current position if it does not equal <paramref name="value"/></returns>
+        /// <exception cref="ArgumentNullException"><paramref name="comparer"/> is null</exception>
+        public static Parser<TSource, TSource> IsNot<TSource>(TSource value, IEqualityComparer<TSource> comparer) {
+            if (comparer == null)
+                throw new ArgumentNullException(nameof(comparer));
+
+            return new Parser<TSource, TSource>((data, start, trace) => {
+                return start < data.Length && !comparer.Equals(data[start], value)
+                    ? ParseResult.Success(value, start, 1)
+                    : ParseResult.Fail<TSource>();
+            });
+        }
+
+        public static Parser<TSource, TSource> IsAny<TSource>(ReadOnlyMemory<TSource> value) {
+            return IsAny(value, EqualityComparer<TSource>.Default);
+        }
+
+        public static Parser<TSource, TSource> IsAny<TSource>(ReadOnlyMemory<TSource> value, IEqualityComparer<TSource> comparer) {
+            if (value.IsEmpty)
+                throw new ArgumentException("input sequence is empty", nameof(value));
+
+            if (comparer == null)
+                throw new ArgumentNullException(nameof(comparer));
+
+            return new Parser<TSource, TSource>((data, start, trace) => {
+                return start < data.Length && SpanUtilities.Contains(value.Span, data[start], comparer)
+                    ? ParseResult.Success(data[start], start, 1)
+                    : ParseResult.Fail<TSource>();
+            });
+        }
+
+        public static Parser<TSource, TSource> IsNotAny<TSource>(ReadOnlyMemory<TSource> value) {
+            return IsNotAny(value, EqualityComparer<TSource>.Default);
+        }
+
+        public static Parser<TSource, TSource> IsNotAny<TSource>(ReadOnlyMemory<TSource> value, IEqualityComparer<TSource> comparer) {
+            if (value.IsEmpty)
+                throw new ArgumentException("input sequence is empty", nameof(value));
+
+            if (comparer == null)
+                throw new ArgumentNullException(nameof(comparer));
+
+            return new Parser<TSource, TSource>((data, start, trace) => {
+                return start < data.Length && !SpanUtilities.Contains(value.Span, data[start], comparer)
+                    ? ParseResult.Success(data[start], start, 1)
+                    : ParseResult.Fail<TSource>();
+            });
+        }
+
+        public static Parser<TSource, Range> TakeWhile<TSource>(Func<TSource, bool> predicate, int min = 0, int? max = default) {
+            return TakeWhile<TSource>((data, index) => predicate(data[index]), min, max);
+        }
+
+        /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}" /> that matches a range of <typeparamref name="TSource"/> elements against a predicate
+        /// </summary>
+        /// <typeparam name="TSource">Type of the underlying data</typeparam>
+        /// <param name="predicate">Predicate that is invoked for each <typeparamref name="TSource"/> element</param>
+        /// <param name="min">Minumum number of matches required (inclusive)</param>
+        /// <param name="max">Maximum number of matches allowed (inclusive)</param>
+        /// <returns>A <see cref="Parser{TSource, TResult}"/> that yields the <see cref="Range"/> of data that was matched</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="predicate"/> is null</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="min"/> is less than 0 or <paramref name="max"/> is less than <paramref name="min"/></exception>
+        public static Parser<TSource, Range> TakeWhile<TSource>(ParserPredicate<TSource> predicate, int min = 0, int? max = default) {
+            if (predicate == null)
+                throw new ArgumentNullException(nameof(predicate));
             if (min < 0 || max < min)
                 throw new ArgumentOutOfRangeException(min < 0 ? nameof(min) : nameof(max));
 
             return new Parser<TSource, Range>((data, start, trace) => {
-                var pos = start;
                 var len = 0;
+                var local = data.Slice(start);
 
-                while (pos < data.Length && (max == default || len < max) && test(data[pos])) {
-                    ++pos;
+                while (len < local.Length && (max == default || len < max) && predicate(local, len))
                     ++len;
-                }
-
+      
                 return len < min
                     ? ParseResult.Fail(Range.Failure)
                     : ParseResult.Success(new Range(start, len), start, len);
             });
         }
 
-        public static Parser<TSource, Tuple<Range, TNext>> MatchUntil<TSource, TNext>(Func<TSource, bool> test, Parser<TSource, TNext> next, int min = 0, int? max = default) {
+
+        /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}"/> that matches any <typeparamref name="TSource"/> element until the <paramref name="next"/> parser succeeds
+        /// </summary>
+        /// <typeparam name="TSource">The type of the underlying data</typeparam>
+        /// <typeparam name="TNext">The return type of the next parser</typeparam>
+        /// <param name="next">A </param>
+        /// <param name="min"></param>
+        /// <returns></returns>
+        public static Parser<TSource, Tuple<Range, TNext>> TakeUntil<TSource, TNext>(Parser<TSource, TNext> next, int min = 0) {
             if (next == null)
                 throw new ArgumentNullException(nameof(next));
-            if (min < 0 || max < min)
-                throw new ArgumentOutOfRangeException(min < 0 ? nameof(min) : nameof(max));
+            if (min < 0)
+                throw new ArgumentOutOfRangeException(nameof(min));
 
             return new Parser<TSource, Tuple<Range, TNext>>((data, start, trace) => {
                 var pos = start;
-                var len = 0;
-                var nextValue = default(TNext);
 
-                while (pos < data.Length && (max == default || len < max)) {
+                while (pos < data.Length) {
                     var res = next.Parse(data, pos, trace);
 
-                    if (res.Success) {
-                        nextValue = res.Value;
-                        pos += res.Length;
-                        break;
-                    }
-
-                    if (!test(data[pos]))
-                        break;
-
+                    if (res.Success && (pos - start) >= min) 
+                        return ParseResult.Success(Tuple.Create(new Range(start, pos - start), res.Value), start, (pos - start) + res.Length);
+                
                     ++pos;
-                    ++len;
                 }
 
-                return len < min
-                    ? ParseResult.Fail<Tuple<Range, TNext>>()
-                    : ParseResult.Success(Tuple.Create(new Range(start, len), nextValue), start, pos - start);
+                return ParseResult.Fail<Tuple<Range, TNext>>();
             });
         }
     }

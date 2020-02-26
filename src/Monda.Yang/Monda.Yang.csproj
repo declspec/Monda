@@ -20,4 +20,8 @@
     <ProjectReference Include="..\Monda\Monda.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Models\" />
+  </ItemGroup>
+
 </Project>

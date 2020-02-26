@@ -12,10 +12,9 @@ namespace Monda.Yang {
                 throw new ArgumentOutOfRangeException(nameof(len));
 
             var alloc = new string('\0', len);
+            var readable = alloc.AsSpan();
 
             unsafe {
-                var readable = alloc.AsSpan();
-
                 fixed (char *ptr = &readable[0]) {
                     var writable = new Span<char>(ptr, readable.Length);
                     action(writable, state);
