@@ -24,11 +24,14 @@ namespace Monda {
     public delegate bool ParserPredicate<TSource>(ReadOnlySpan<TSource> data, int index);
 
     /// <summary>
-    /// Fundamental parsing unit to extract one <typeparamref name="TResult"/> output from a set of <typeparamref name="TSource"/> input items
+    /// Fundamental parsing unit to extract one <typeparamref name="TResult"/> from a set of <typeparamref name="TSource"/> input items
     /// </summary>
     /// <typeparam name="TSource">The type of items in the input data</typeparam>
     /// <typeparam name="TResult">The result type of the parser</typeparam>
     public class Parser<TSource, TResult> {
+        /// <summary>
+        /// Identifying name for the parser
+        /// </summary>
         public string Name { get; private set; }
 
         private readonly ParseFunction<TSource, TResult> _parse;
