@@ -19,9 +19,9 @@ namespace Monda.Yang {
         private static readonly Parser<char, Range> CommentParser = LineCommentParser.Or(BlockCommentParser)
             .WithName(nameof(CommentParser));
 
-        public static readonly Parser<char, int> SeparatorParser = Parser.TakeWhile<char>(char.IsWhiteSpace, 1)
+        public static readonly Parser<char, int> SeparatorParser = Parser.TakeWhile<char>(char.IsWhiteSpace, min: 1)
             .Or(CommentParser)
-            .SkipMany(1)
+            .SkipMany(min: 1)
             .WithName(nameof(SeparatorParser));
 
         private static readonly Parser<char, int> OptionalSeparatorParser = SeparatorParser.Optional()
@@ -32,12 +32,8 @@ namespace Monda.Yang {
             || char.IsLetter(data[index]) 
             || (index > 0 && (data[index] == '.' || data[index] == '-' || char.IsDigit(data[index]))); // Can be . or - or digit iif not the first character.
 
-        private static readonly Parser<char, string> IdentifierParser = Parser.TakeWhile(IdentifierPredicate, 1)
-            .TryMap((ParseResult<Range> res, ReadOnlySpan<char> data, out string next) => {
-                var id = data.Slice(res.Start, res.Length);
-                next = id.StartsWith("xml".AsSpan(), StringComparison.OrdinalIgnoreCase) ? null : id.ToString();
-                return next != null;
-            })
+        private static readonly Parser<char, string> IdentifierParser = Parser.TakeWhile(IdentifierPredicate, min: 1)
+            .Map(CopyToString)
             .WithName(nameof(IdentifierParser));
 
         public static readonly Parser<char, Tuple<string, string>> KeywordParser = IdentifierParser
@@ -60,7 +56,7 @@ namespace Monda.Yang {
             return pos == start ? ParseResult.Fail(Range.Failure) : ParseResult.Success(new Range(start, pos - start), start, pos - start);
         });
 
-        private static readonly Parser<char, string> DoubleQuotedStringParser = Parser.TakeWhile<char>(ch => ch != '\\' && ch != '"', 1)
+        private static readonly Parser<char, string> DoubleQuotedStringParser = Parser.TakeWhile<char>(ch => ch != '\\' && ch != '"', min: 1)
             .Then(EscapeSequencesParser.Optional(Range.Failure))
             .Many()
             .Between(Parser.Is('"'))
@@ -144,9 +140,9 @@ namespace Monda.Yang {
             .PrecededBy(OptionalSeparatorParser)
             .WithName(nameof(SubstatementParser));
 
-        //
+        // --
         // Mapping helpers
-        //
+        // --
 
         private static string CopyToString(ParseResult<Range> res, ReadOnlySpan<char> data) {
             return data.Slice(res.Value.Start, res.Value.Length).ToString();
