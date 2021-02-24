@@ -6,7 +6,7 @@ namespace Monda {
     /// </summary>
     /// <typeparam name="TValue">Underlying value type</typeparam>
     /// <seealso cref="ParseResult.Success{T}(in T, int, int)"/>
-    /// <seealso cref="ParseResult.Fail{T}"/>
+    /// <seealso cref="ParseResult.Fail{T}()"/>
     /// <seealso cref="ParseResult.Fail{T}(in T)"/>
     public readonly ref struct ParseResult<TValue> {
         /// <summary>The underlying result value</summary>

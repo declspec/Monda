@@ -107,9 +107,17 @@ namespace Monda {
             });
         }
 
-
-        public static Parser<TSource, TResult> Between<TSource, TResult, TSurrounding>(this Parser<TSource, TResult> self, Parser<TSource, TSurrounding> surrounding) {
-            return Between(self, surrounding, surrounding);
+        /// <summary>
+        /// Creates a new parser that ensures that the current parser is surrounded by <paramref name="other"/>
+        /// </summary>
+        /// <typeparam name="TSource">The type of items in the input data</typeparam>
+        /// <typeparam name="TResult">The result type of <paramref name="self"/></typeparam>
+        /// <typeparam name="TOther">The result type of <paramref name="other"/></typeparam>
+        /// <param name="self">The current parser</param>
+        /// <param name="other">The parser to match before and after the current parser</param>
+        /// <returns>A new <see cref="Parser{TSource, TResult}"/> that returns the result of the current parser if it is found between <paramref name="other" /></returns>
+        public static Parser<TSource, TResult> Between<TSource, TResult, TOther>(this Parser<TSource, TResult> self, Parser<TSource, TOther> other) {
+            return Between(self, other, other);
         }
 
         /// <summary>
@@ -265,6 +273,7 @@ namespace Monda {
         /// </summary>
         /// <typeparam name="TSource">The type of items in the input data</typeparam>
         /// <typeparam name="TResult">The result type of <paramref name="self"/></typeparam>
+        /// <typeparam name="TNext">The result type of <paramref name="next"/></typeparam>
         /// <param name="self">The current parser</param>
         /// <param name="next">The parser that determines when to stop repeating</param>
         /// <param name="min">The minimum number of times the parser must execute</param>
@@ -322,7 +331,7 @@ namespace Monda {
         /// <returns>A new <see cref="Parser{TSource, TResult}"/> that executes the current parser <paramref name="count"/> times, counting the number of results</returns>
         /// <exception cref="StackOverflowException">If the current parser returns a zero-length result</exception>
         /// <seealso cref="Repeat{TSource, TResult}(Parser{TSource, TResult}, int)"/>
-        /// <seealso cref="Many{TSource, TResult}(Parser{TSource, TResult}, int, int?)
+        /// <seealso cref="Many{TSource, TResult}(Parser{TSource, TResult}, int, int?)"/>
         /// <seealso cref="ManyUntil{TSource, TResult, TNext}(Parser{TSource, TResult}, Parser{TSource, TNext}, int)"/>
         /// <seealso cref="SkipMany{TSource, TResult}(Parser{TSource, TResult}, int, int?)"/>
         /// <seealso cref="SkipUntil{TSource, TResult, TNext}(Parser{TSource, TResult}, Parser{TSource, TNext}, int)"/>
@@ -383,6 +392,7 @@ namespace Monda {
         /// </summary>
         /// <typeparam name="TSource">The type of items in the input data</typeparam>
         /// <typeparam name="TResult">The result type of <paramref name="self"/></typeparam>
+        /// <typeparam name="TNext">The result type of <paramref name="next"/></typeparam>
         /// <param name="self">The current parser</param>
         /// <param name="next">The parser that determines when to stop repeating</param>
         /// <param name="min">The minimum number of times the parser must execute</param>

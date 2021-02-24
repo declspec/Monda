@@ -3,11 +3,30 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>Monda</RootNamespace>
+    <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
   </PropertyGroup>
 
   <PropertyGroup>
     <DocumentationFile>$(ProjectDir)Monda.xml</DocumentationFile>
     <DocumentationMarkdown>$(SolutionDir)API.md</DocumentationMarkdown>
+    <Authors>Jason Larke</Authors>
+    <Company />
+    <Description>Monda is a simple and performant monadic parser built to take advantage of the recent performance-driven APIs released by the .NET team</Description>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageProjectUrl>https://github.com/declspec/Monda</PackageProjectUrl>
+    <RepositoryType>https://github.com/declspec/Monda</RepositoryType>
+    <PackageTags>monda parser combinator monad</PackageTags>
+    <Version>1.0.0-alpha2</Version>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DefineConstants></DefineConstants>
+    <OutputPath></OutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <OutputPath></OutputPath>
   </PropertyGroup>
 
 

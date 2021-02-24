@@ -13,11 +13,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Monda" Version="1.0.0-alpha1" />
     <PackageReference Include="System.Memory" Version="4.5.3" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Monda\Monda.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -107,6 +107,71 @@ namespace Monda {
         }
 
         /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}"/> that yields a single <typeparamref name="TSource"/> item if it passes <paramref name="predicate"/>
+        /// </summary>
+        /// <typeparam name="TSource">The type of items in the input data</typeparam>
+        /// <param name="predicate">Predicate that is invoked against the next <typeparamref name="TSource"/> item</param>
+        /// <returns>A parser that will succeed if the <typeparamref name="TSource"/> item at the parser's current position passes <paramref name="predicate"/></returns>
+        /// <exception cref="ArgumentNullException"><paramref name="predicate"/> is null</exception>
+        public static Parser<TSource, TSource> Is<TSource>(Func<TSource, bool> predicate) {
+            if (predicate == null)
+                throw new ArgumentNullException(nameof(predicate));
+
+            return new Parser<TSource, TSource>((data, start, trace) => {
+                return start < data.Length && predicate(data[start])
+                    ? ParseResult.Success(data[start], start, 1)
+                    : ParseResult.Fail<TSource>();
+            });
+        }
+
+        /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}"/> that yields a single <typeparamref name="TSource"/> item if it does not equal <paramref name="value"/>, using the default comparer for <typeparamref name="TSource"/> to compare items
+        /// </summary>
+        /// <typeparam name="TSource">The type of items in the input data</typeparam>
+        /// <param name="value">Item to match</param>
+        /// <returns>A parser that will succeed if the <typeparamref name="TSource"/> item at the parser's current position does not equal <paramref name="value"/></returns>
+        public static Parser<TSource, TSource> IsNot<TSource>(TSource value) {
+            return IsNot(value, EqualityComparer<TSource>.Default);
+        }
+
+        /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}"/> that yields a single <typeparamref name="TSource"/> item if it does not equal <paramref name="value"/>, using <paramref name="comparer"/> to compare items
+        /// </summary>
+        /// <typeparam name="TSource">The type of items in the input data</typeparam>
+        /// <param name="value">Item to match</param>
+        /// <param name="comparer">Comparer used to determine equality between <typeparamref name="TSource"/> items</param>
+        /// <returns>A parser that will succeed if the <typeparamref name="TSource"/> item at the parser's current position does not equal <paramref name="value"/></returns>
+        /// <exception cref="ArgumentNullException"><paramref name="comparer"/> is null</exception>
+        public static Parser<TSource, TSource> IsNot<TSource>(TSource value, IEqualityComparer<TSource> comparer) {
+            if (comparer == null)
+                throw new ArgumentNullException(nameof(comparer));
+
+            return new Parser<TSource, TSource>((data, start, trace) => {
+                return start < data.Length && !comparer.Equals(data[start], value)
+                    ? ParseResult.Success(data[start], start, 1)
+                    : ParseResult.Fail<TSource>();
+            });
+        }
+
+        /// <summary>
+        /// Creates a <see cref="Parser{TSource, TResult}"/> that yields a single <typeparamref name="TSource"/> item if it does not pass <paramref name="predicate"/>
+        /// </summary>
+        /// <typeparam name="TSource">The type of items in the input data</typeparam>
+        /// <param name="predicate">Predicate that is invoked against the next <typeparamref name="TSource"/> item</param>
+        /// <returns>A parser that will succeed if the <typeparamref name="TSource"/> item at the parser's current position does not pass <paramref name="predicate"/></returns>
+        /// <exception cref="ArgumentNullException"><paramref name="predicate"/> is null</exception>
+        public static Parser<TSource, TSource> IsNot<TSource>(Func<TSource, bool> predicate) {
+            if (predicate == null)
+                throw new ArgumentNullException(nameof(predicate));
+
+            return new Parser<TSource, TSource>((data, start, trace) => {
+                return start < data.Length && !predicate(data[start])
+                    ? ParseResult.Success(data[start], start, 1)
+                    : ParseResult.Fail<TSource>();
+            });
+        }
+
+        /// <summary>
         /// Creates a <see cref="Parser{TSource, TResult}"/> that yields a <see cref="IReadOnlyList{TSource}"/> if the sequence of items at the current position equals <paramref name="value"/>, using the default comparer for <typeparamref name="TSource"/> to compare items
         /// </summary>
         /// <typeparam name="TSource">The type of items in the input data</typeparam>
@@ -142,35 +207,6 @@ namespace Monda {
                 }
 
                 return ParseResult.Success(value, start, value.Count);
-            });
-        }
-
-        /// <summary>
-        /// Creates a <see cref="Parser{TSource, TResult}"/> that yields a single <typeparamref name="TSource"/> item if it does not equal <paramref name="value"/>, using the default comparer for <typeparamref name="TSource"/> to compare items
-        /// </summary>
-        /// <typeparam name="TSource">The type of items in the input data</typeparam>
-        /// <param name="value">Item to match</param>
-        /// <returns>A parser that will succeed if the <typeparamref name="TSource"/> item at the parser's current position does not equal <paramref name="value"/></returns>
-        public static Parser<TSource, TSource> IsNot<TSource>(TSource value) {
-            return IsNot(value, EqualityComparer<TSource>.Default);
-        }
-
-        /// <summary>
-        /// Creates a <see cref="Parser{TSource, TResult}"/> that yields a single <typeparamref name="TSource"/> item if it does not equal <paramref name="value"/>, using <paramref name="comparer"/> to compare items
-        /// </summary>
-        /// <typeparam name="TSource">The type of items in the input data</typeparam>
-        /// <param name="value">Item to match</param>
-        /// <param name="comparer">Comparer used to determine equality between <typeparamref name="TSource"/> items</param>
-        /// <returns>A parser that will succeed if the <typeparamref name="TSource"/> item at the parser's current position does not equal <paramref name="value"/></returns>
-        /// <exception cref="ArgumentNullException"><paramref name="comparer"/> is null</exception>
-        public static Parser<TSource, TSource> IsNot<TSource>(TSource value, IEqualityComparer<TSource> comparer) {
-            if (comparer == null)
-                throw new ArgumentNullException(nameof(comparer));
-
-            return new Parser<TSource, TSource>((data, start, trace) => {
-                return start < data.Length && !comparer.Equals(data[start], value)
-                    ? ParseResult.Success(value, start, 1)
-                    : ParseResult.Fail<TSource>();
             });
         }
 
@@ -294,7 +330,7 @@ namespace Monda {
         /// <typeparam name="TNext">The return type of the next parser</typeparam>
         /// <param name="next">A <see cref="Parser{TSource, TNext}"/> that will succeed at the end of the range</param>
         /// <param name="min">Minimum number of matches required (inclusive)</param>
-        /// <returns>A <see cref="Parser{TSource, Tuple{Range, TNext}}"/> that yields a tuple containing the <see cref="Range" /> that was matched and the result of <paramref name="next"/></returns>
+        /// <returns>A <see cref="Parser{TSource, TResult}"/> that yields a tuple containing the <see cref="Range" /> that was matched and the result of <paramref name="next"/></returns>
         /// <exception cref="ArgumentNullException"><paramref name="next"/> is null</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="min"/> is less than 0</exception>
         public static Parser<TSource, Tuple<Range, TNext>> TakeUntil<TSource, TNext>(Parser<TSource, TNext> next, int min = 0) {
