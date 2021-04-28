@@ -2,6 +2,15 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <BuildVersion Condition="'$(BuildVersion)' == ''">1.0.0</BuildVersion>
+    <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
+    <Version>$(BuildVersion)</Version>
+    <PackageVersion>$(Version)</PackageVersion>
+    <AssemblyVersion>$(BuildVersion)</AssemblyVersion>
+    <FileVersion>$(BuildVersion).$(BuildNumber)</FileVersion>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Authors>Jason Larke</Authors>
+    <Description>YANG file parser written using Monda</Description>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -13,11 +22,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Monda" Version="1.0.0-alpha3" />
     <PackageReference Include="System.Memory" Version="4.5.3" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Monda\Monda.csproj" />
   </ItemGroup>
 
   <ItemGroup>
