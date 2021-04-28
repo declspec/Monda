@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>Monda.Yang</id>
+    <authors>Jason Larke</authors>
+    <owners>Jason Larke</owners>
+    <description>YANG file parser written using Monda</description>
+    <version>$Version$</version>
+    <license type="expression">MIT</license>
+    <dependencies>
+      <dependency id="Monda" version="1.0.0-alpha3" />
+      <dependency id="System.Memory" version="4.5.3" />
+    </dependencies>
+  </metadata>
+</package>

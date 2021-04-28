@@ -10,7 +10,7 @@ namespace Monda.Yang {
 
         public static IReadOnlyList<YangStatement> ParseStatements(ReadOnlySpan<char> span) {
             var trace = new ParserTrace();
-            var result = StatementParser.Parse(span, trace);
+            var result = StatementParser.Many(min: 1).Parse(span, trace);
 
             if (!result.Success)
                 throw new FormatException($"error parsing YANG statements at position: {trace.Position}");

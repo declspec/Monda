@@ -19,7 +19,7 @@ namespace Monda.Yang {
         private static readonly Parser<char, Range> CommentParser = LineCommentParser.Or(BlockCommentParser)
             .WithName(nameof(CommentParser));
 
-        public static readonly Parser<char, int> SeparatorParser = Parser.TakeWhile<char>(char.IsWhiteSpace, min: 1)
+        private static readonly Parser<char, int> SeparatorParser = Parser.TakeWhile<char>(char.IsWhiteSpace, min: 1)
             .Or(CommentParser)
             .SkipMany(min: 1)
             .WithName(nameof(SeparatorParser));
@@ -36,7 +36,7 @@ namespace Monda.Yang {
             .Map(CopyToString)
             .WithName(nameof(IdentifierParser));
 
-        public static readonly Parser<char, Tuple<string, string>> KeywordParser = IdentifierParser
+        private static readonly Parser<char, Tuple<string, string>> KeywordParser = IdentifierParser
             .FollowedBy(Parser.Is(':'))
             .Optional()
             .Then(IdentifierParser)
@@ -129,16 +129,17 @@ namespace Monda.Yang {
                 : ParseResult.Fail<YangStatement>();
         });
 
-        private static readonly Parser<char, IReadOnlyList<YangStatement>> StatementParser = SingleStatementParser
+        private static readonly Parser<char, YangStatement> StatementParser = SingleStatementParser
             .Between(OptionalSeparatorParser)
-            .Many()
             .WithName(nameof(StatementParser));
 
-        private static readonly Parser<char, IReadOnlyList<YangStatement>> SubstatementParser = Parser.Is(';')
-            .Map((res, data) => default(IReadOnlyList<YangStatement>))
-            .Or(StatementParser.Between(Parser.Is('{'), Parser.Is('}')))
-            .PrecededBy(OptionalSeparatorParser)
-            .WithName(nameof(SubstatementParser));
+        private static readonly Parser<char, IReadOnlyList<YangStatement>> SubstatementParser =
+            Parser.Is(';').Map((r, d) => default(IReadOnlyList<YangStatement>))
+                .Or(StatementParser.Many()
+                    .Between(OptionalSeparatorParser) // account for empty { } block
+                    .Between(Parser.Is('{'), Parser.Is('}')))
+                .PrecededBy(OptionalSeparatorParser)
+                .WithName(nameof(SubstatementParser));
 
         // --
         // Mapping helpers

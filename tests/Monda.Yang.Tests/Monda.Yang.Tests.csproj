@@ -20,6 +20,9 @@
     <None Update="Examples\CISCO-PROCESS-MIB.yang">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Examples\etsi-nfv-vnf.yang">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
